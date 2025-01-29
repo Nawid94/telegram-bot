@@ -22,4 +22,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run script
-        run: python your_script.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: python script.py

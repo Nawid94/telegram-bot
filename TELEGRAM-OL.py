@@ -1,20 +1,24 @@
-import logging
-import datetime
-import os
-from telegram import Bot
+import requests
+from datetime import datetime
+import time
 
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')  
+TELEGRAM_BOT_TOKEN = '7700864547:AAEfIV3T2C1fkQ8t1P5kpLyF8EuooCTVy68'
+TELEGRAM_CHANNEL_ID = -1002379220152  # آیدی عددی کانال خصوصی
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+def send_time_to_telegram():
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    message = f"زمان فعلی: {current_time}"
+    params = {
+        'chat_id': TELEGRAM_CHANNEL_ID,
+        'text': message
+    }
+    response = requests.post(TELEGRAM_API_URL, params=params)
+    if response.status_code == 200:
+        print("ok")
+    else:
+        print(f"error: {response.status_code}")
 
-async def send_time():
-    now = datetime.datetime.now().strftime("%H:%M:%S")
-    message = f"⏰ Current Time: {now}"
-    
-    bot = Bot(token=TOKEN)
-    await bot.send_message(chat_id=CHAT_ID, text=message)
-    print("✅ Time sent successfully!")
 
-if __name__ == "__main__":
-    asyncio.run(send_time())
+send_time_to_telegram()
+

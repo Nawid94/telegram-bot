@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  
+        uses: actions/checkout@v4 
 
       - name: Set up Python
         uses: actions/setup-python@v4 
@@ -22,11 +22,12 @@ jobs:
           pip install -r requirements.txt
 
       - name: Download previous output
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4  
         with:
           name: bot-output
+          path: . 
         continue-on-error: true  
-     
+
       - name: Run script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -35,7 +36,7 @@ jobs:
           python TELEGRAM-OL.py
 
       - name: Upload output as artifact
-        uses: actions/upload-artifact@v3 
+        uses: actions/upload-artifact@v4  
         with:
           name: bot-output
           path: bot_output.pkl

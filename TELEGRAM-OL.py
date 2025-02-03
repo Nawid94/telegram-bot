@@ -8,21 +8,30 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHAT_ID')  
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 TEHRAN_TZ = pytz.timezone('Asia/Tehran')
-TOKEN_FILE = "tokens.pkl"
+TOKEN_FILE = "bot_output.pkl"  
 
 def load_previous_time():
-    if os.path.exists(TOKEN_FILE):
+    try:
         with open(TOKEN_FILE, "rb") as file:
             tokens = pickle.load(file)
             if tokens:
                 return tokens[-1]
-    return None
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        print(f"Error loading previous time: {e}")
+        return None
 
 def save_current_time(current_time):
     tokens = []
-    if os.path.exists(TOKEN_FILE):
+    try:
         with open(TOKEN_FILE, "rb") as file:
             tokens = pickle.load(file)
+    except FileNotFoundError:
+        pass 
+    except Exception as e:
+        print(f"Error reading previous tokens: {e}")
+    
     tokens.append(current_time)
     with open(TOKEN_FILE, "wb") as file:
         pickle.dump(tokens, file)

@@ -14,8 +14,8 @@ def load_previous_time():
     if os.path.exists(TOKEN_FILE):
         with open(TOKEN_FILE, "rb") as file:
             tokens = pickle.load(file)
-            if tokens:  # بررسی اینکه لیست خالی نباشد
-                return tokens[-1]  # آخرین مقدار ذخیره‌شده را برمی‌گرداند
+            if tokens:
+                return tokens[-1]
     return None
 
 def save_current_time(current_time):

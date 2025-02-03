@@ -44,9 +44,9 @@ def send_time_to_telegram():
     if previous_time_str:
         previous_time = datetime.strptime(previous_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=TEHRAN_TZ)
         time_difference = current_time - previous_time
-        message = f"Now in Tehran: {current_time_str}\nTime since last message: {time_difference}"
+        message = f"Now: {current_time_str}\nTime since last message: {time_difference}"
     else:
-        message = f"Now in Tehran: {current_time_str}\nThis is the first recorded time."
+        message = f"Now: {current_time_str}\nThis is the first recorded time."
     
     params = {'chat_id': TELEGRAM_CHANNEL_ID, 'text': message}
     response = requests.post(TELEGRAM_API_URL, params=params)

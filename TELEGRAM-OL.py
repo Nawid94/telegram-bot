@@ -47,7 +47,7 @@ def send_time_to_telegram():
         message = f"Now: {current_time}\nThis is the first recorded time."
 
     send_to_telegram(TELEGRAM_CHAT_ID, message)
-    time.sleep(3)
+    time.sleep(30)
     send_to_telegram(TELEGRAM_BACKUP_ID, f"Backup time: {current_time}")
 
 send_time_to_telegram()

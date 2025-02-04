@@ -37,7 +37,11 @@ def send_time_to_telegram():
     if previous_time_str:
         previous_time = datetime.strptime(previous_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=TEHRAN_TZ)
         time_difference = datetime.now(TEHRAN_TZ) - previous_time
-        message = f" Now: {current_time}\n Time since last message: {time_difference}"
+        total_seconds = int(time_difference.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        formatted_difference = f"{hours} hours, {minutes} minutes, {seconds} seconds"
+        message = f" Now: {current_time}\n Time since last message: {formatted_difference}"
     else:
         message = f" Now: {current_time}\n This is the first recorded time."
 

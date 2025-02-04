@@ -29,7 +29,7 @@ def get_last_message():
                     if "message" in message and "text" in message["message"]:
                         return message["message"]["text"]
     except Exception as e:
-        print(f"⚠️ Error getting last message: {e}")
+        send_to_telegram(f"⚠️ Error getting last message: {e}")
     return None
 
 def extract_previous_time(message):

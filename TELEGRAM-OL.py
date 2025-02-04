@@ -5,9 +5,8 @@ from datetime import datetime
 import pytz
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')  # کانال اصلی
-TELEGRAM_BACKUP_ID = os.getenv("TELEGRAM_BACKUP_ID")  # گروه بکاپ
-
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')  
+TELEGRAM_BACKUP_ID = os.getenv("TELEGRAM_BACKUP_ID") 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 TEHRAN_TZ = pytz.timezone('Asia/Tehran')
 
@@ -15,9 +14,9 @@ def send_to_telegram(chat_id, message):
     params = {'chat_id': chat_id, 'text': message}
     response = requests.post(TELEGRAM_API_URL, params=params)
     if response.status_code == 200:
-        print("✅ Message sent successfully!")
+        print("Message sent successfully!")
     else:
-        print(f"⚠️ Error sending message: {response.status_code}")
+        print(f"Error sending message: {response.status_code}")
 
 def get_last_backup_time():
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=5"
@@ -38,9 +37,9 @@ def send_time_to_telegram():
     if previous_time_str:
         previous_time = datetime.strptime(previous_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=TEHRAN_TZ)
         time_difference = datetime.now(TEHRAN_TZ) - previous_time
-        message = f"🕰 Now: {current_time}\n⏳ Time since last message: {time_difference}"
+        message = f" Now: {current_time}\n Time since last message: {time_difference}"
     else:
-        message = f"🕰 Now: {current_time}\n🚀 This is the first recorded time."
+        message = f" Now: {current_time}\n This is the first recorded time."
 
     send_to_telegram(TELEGRAM_CHAT_ID, message)
     

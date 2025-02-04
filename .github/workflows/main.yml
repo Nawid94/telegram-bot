@@ -2,7 +2,7 @@ name: Run Telegram Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *' 
+    - cron: '*/5 * * * *'  # اجرا هر ۵ دقیقه یک‌بار
 
 jobs:
   run-bot:
@@ -21,30 +21,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-    
-      - name: Download previous output
+      # 🔻 بررسی و دانلود فایل قبلی (خطا را نادیده بگیر)
+      - name: Download previous output (if exists)
+        id: download_artifact
         uses: actions/download-artifact@v4
         with:
           name: bot-output
-          path: . 
-        continue-on-error: true 
+          path: .
+        continue-on-error: true  # ❗ اگر فایل وجود نداشت، متوقف نشود
 
-   
       - name: Check if previous output exists
-        run: ls -lah bot_output.pkl || echo "No previous output found"
+        run: |
+          if [ -f "bot_output.pkl" ]; then
+            echo "✅ Previous output file found!"
+          else
+            echo "⚠️ No previous output file found!"
+          fi
 
-   
+      # 🔻 اجرای اسکریپت
       - name: Run script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python TELEGRAM-OL.py
 
-    
+      # 🔻 بررسی فایل جدید بعد از اجرا
       - name: Check generated output
-        run: ls -lah bot_output.pkl || echo "No new output generated"
+        run: |
+          if [ -f "bot_output.pkl" ]; then
+            echo "✅ New output file generated!"
+          else
+            echo "❌ No new output file generated!"
+          fi
 
-      
+      # 🔻 ذخیره فایل برای اجرای بعدی
       - name: Upload output as artifact
         uses: actions/upload-artifact@v4
         with:

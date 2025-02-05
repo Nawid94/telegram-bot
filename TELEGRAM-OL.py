@@ -1,39 +1,36 @@
 import requests
 import os
-import re
+import redis
 from datetime import datetime
 import pytz
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')  # آیدی کانال برای ارسال پیام
-TELEGRAM_BACKUP_ID = os.getenv('TELEGRAM_BACKUP_ID')  # آیدی گروه برای خواندن پیام‌ها
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+REDIS_HOST = os.getenv('REDIS_HOST')
+REDIS_PORT = os.getenv('REDIS_PORT')
+REDIS_USERNAME = os.getenv('REDIS_USERNAME')
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=int(REDIS_PORT),
+    username=REDIS_USERNAME,
+    password=REDIS_PASSWORD,
+    decode_responses=True
+)
 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 TEHRAN_TZ = pytz.timezone('Asia/Tehran')
 
 def send_to_telegram(chat_id, message):
     params = {'chat_id': chat_id, 'text': message}
-    response = requests.post(TELEGRAM_API_URL, params=params)
+    requests.post(TELEGRAM_API_URL, params=params)
 
 def get_last_backup_time():
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=10"
-    response = requests.get(url).json()
-    print(response)
-    if response.get("ok"):
-        updates = response.get("result", [])
-        for update in reversed(updates):  # بررسی از جدیدترین پیام‌ها به قدیمی‌ترین
-            message = update.get("message", {})
-            chat_id = message.get("chat", {}).get("id") 
-            
-            if chat_id == int(TELEGRAM_BACKUP_ID):  # فقط پیام‌های گروه مربوطه
-                text = message.get("text", "")
-                
-                # با استفاده از regex برای پیدا کردن زمان آخرین بک‌آپ
-                match = re.search(r"Backup time:\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", text)
-                if match:
-                    return match.group(1)  # اگر زمان پیدا شد، آن را برگردان
+    return redis_client.get("last_backup_time")
 
-    return None  # در صورتی که هیچ پیامی پیدا نشد
+def save_backup_time(timestamp):
+    redis_client.set("last_backup_time", timestamp)
 
 def send_time_to_telegram():
     current_time = datetime.now(TEHRAN_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -50,10 +47,7 @@ def send_time_to_telegram():
     else:
         message = f"Now: {current_time}\nThis is the first recorded time."
 
-    # ارسال پیام به کانال (با استفاده از TELEGRAM_CHAT_ID)
     send_to_telegram(TELEGRAM_CHAT_ID, message)
-    
-    # ارسال پیام به گروه (با استفاده از TELEGRAM_BACKUP_ID)
-    send_to_telegram(TELEGRAM_BACKUP_ID, f"Backup time: {current_time}")
+    save_backup_time(current_time)
 
 send_time_to_telegram()

@@ -18,7 +18,7 @@ def send_to_telegram(chat_id, message):
 def get_last_backup_time():
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=10"
     response = requests.get(url).json()
-
+    print(response)
     if response.get("ok"):
         updates = response.get("result", [])
         for update in reversed(updates):  # بررسی از جدیدترین پیام‌ها به قدیمی‌ترین

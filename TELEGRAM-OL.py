@@ -44,7 +44,7 @@ def format_time_difference(seconds):
     if seconds > 0:
         parts.append(f"{seconds} sec")
     
-    return ' و '.join(parts) + ' difrent'
+    return ' and '.join(parts) + ' difrent'
 
 def send_time_to_telegram():
     current_time = datetime.now(TEHRAN_TZ).strftime("%Y-%m-%d %H:%M:%S")

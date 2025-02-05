@@ -32,18 +32,29 @@ def get_last_backup_time():
 def save_backup_time(timestamp):
     redis_client.set("last_backup_time", timestamp)
 
+def format_time_difference(seconds):
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours} ساعت")
+    if minutes > 0:
+        parts.append(f"{minutes} دقیقه")
+    if seconds > 0:
+        parts.append(f"{seconds} ثانیه")
+    
+    return ' و '.join(parts) + ' اختلاف'
+
 def send_time_to_telegram():
     current_time = datetime.now(TEHRAN_TZ).strftime("%Y-%m-%d %H:%M:%S")
     previous_time_str = get_last_backup_time()
     
     if previous_time_str:
         previous_time = datetime.strptime(previous_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=TEHRAN_TZ)
-        time_difference = datetime.now(TEHRAN_TZ) - previous_time
-        total_seconds = int(time_difference.total_seconds())
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        formatted_difference = f"{hours} hours, {minutes} minutes, {seconds} seconds"
-        message = f"Now: {current_time}\nTime since last message: {formatted_difference}"
+        time_difference = (datetime.now(TEHRAN_TZ) - previous_time).total_seconds()
+        formatted_difference = format_time_difference(int(time_difference))
+        message = f"Now: {current_time}\nPrevious time: {previous_time_str}\nTime difference: {formatted_difference}"
     else:
         message = f"Now: {current_time}\nThis is the first recorded time."
 

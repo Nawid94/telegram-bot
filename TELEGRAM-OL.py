@@ -4,12 +4,21 @@ import redis
 from datetime import datetime
 import pytz
 
+# دریافت مقادیر متغیرهای محیطی
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 REDIS_HOST = os.getenv('REDIS_HOST')
 REDIS_PORT = os.getenv('REDIS_PORT')
 REDIS_USERNAME = os.getenv('REDIS_USERNAME')
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+
+# چاپ مقادیر متغیرهای محیطی برای بررسی
+print(f"TELEGRAM_BOT_TOKEN: {TELEGRAM_BOT_TOKEN}")
+print(f"TELEGRAM_CHAT_ID: {TELEGRAM_CHAT_ID}")
+print(f"REDIS_HOST: {REDIS_HOST}")
+print(f"REDIS_PORT: {REDIS_PORT}")
+print(f"REDIS_USERNAME: {REDIS_USERNAME}")
+print(f"REDIS_PASSWORD: {REDIS_PASSWORD}")
 
 redis_client = redis.Redis(
     host=REDIS_HOST,

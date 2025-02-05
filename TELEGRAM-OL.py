@@ -39,7 +39,7 @@ def send_time_to_telegram():
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         formatted_difference = f"{hours} hours, {minutes} minutes, {seconds} seconds"
-        message = f"Now: {current_time}\nTime since last message: {formatted_difference}\nTELEGRAM_CHAT_ID = {TELEGRAM_CHAT_ID}\nTELEGRAM_BACKUP_ID = {TELEGRAM_BACKUP_ID}"
+        message = f"Now: {current_time}\nTime since last message: {formatted_difference}"
     else:
         message = f"Now: {current_time}\nThis is the first recorded time."
 

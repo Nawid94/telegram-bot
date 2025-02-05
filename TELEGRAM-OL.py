@@ -16,17 +16,21 @@ def send_to_telegram(chat_id, message):
     response = requests.post(TELEGRAM_API_URL, params=params)
 
 def get_last_backup_time():
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=5"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=10"
     response = requests.get(url).json()
-    
+
     if response.get("ok"):
         updates = response.get("result", [])
-        for update in reversed(updates):
-            message = update.get("message", {}).get("text", "")
-            match = re.search(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", message)
-            if match:
-                return match.group(1)
-    return None
+        for update in reversed(updates): 
+            message = update.get("message", {})
+            chat_id = message.get("chat", {}).get("id") 
+            
+            if chat_id == int(TELEGRAM_CHAT_ID): 
+                text = message.get("text", "")
+                match = re.search(r"Backup time:\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", text)
+                if match:
+                    return match.group(1)
+    return None  
 
 def send_time_to_telegram():
     current_time = datetime.now(TEHRAN_TZ).strftime("%Y-%m-%d %H:%M:%S")

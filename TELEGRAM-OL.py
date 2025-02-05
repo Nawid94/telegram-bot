@@ -38,13 +38,13 @@ def format_time_difference(seconds):
     
     parts = []
     if hours > 0:
-        parts.append(f"{hours} ساعت")
+        parts.append(f"{hours} hour")
     if minutes > 0:
-        parts.append(f"{minutes} دقیقه")
+        parts.append(f"{minutes} min")
     if seconds > 0:
-        parts.append(f"{seconds} ثانیه")
+        parts.append(f"{seconds} sec")
     
-    return ' و '.join(parts) + ' اختلاف'
+    return ' و '.join(parts) + ' difrent'
 
 def send_time_to_telegram():
     current_time = datetime.now(TEHRAN_TZ).strftime("%Y-%m-%d %H:%M:%S")

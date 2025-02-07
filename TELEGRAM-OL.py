@@ -219,3 +219,4 @@ while True:
         break
 
 save_divar_tokens(loaded_tokens)
+print(loaded_tokens)

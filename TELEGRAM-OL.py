@@ -126,7 +126,7 @@ divar_post_request = {
                 },
                 "price": {
                     "number_range": {
-                        "maximum": "250000000"
+                        "maximum": "300000000"
                     }
                 },
                 "production-year": {

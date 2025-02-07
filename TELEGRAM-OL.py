@@ -26,7 +26,6 @@ telegram_message_url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMe
 
 def save_divar_tokens(tokens_info):
     redis_client.set("divar_tokens", json.dumps(tokens_info))
-    print("save shod") 
 
 def load_divar_tokens():
     tokens_data = redis_client.get("divar_tokens")
@@ -175,13 +174,11 @@ while True:
     response_data = response.json()
     has_next_page = response_data["pagination"].get("has_next_page", False)
     new_last_post_date = response_data["pagination"]["data"].get("last_post_date", None)
-    print(new_last_post_date)
     list_widgets = response_data["list_widgets"]
     seo_linked_data = response_data["seo_details"]["linked_data"]
 
     for i in range(len(list_widgets)):
         post_token = list_widgets[i].get('data', {}).get('token', "")
-        print(post_token)
         if post_token not in loaded_tokens:
             loaded_tokens.append(post_token)
 
@@ -197,8 +194,9 @@ while True:
             ad_url = seo_linked_data[i].get('url', "")
 
             telegram_message = f"""<b>{post_title}</b>
-رنگ: {vehicle_color}
-گیربکس: {transmission_type}
+            
+رنگ {vehicle_color}
+گیربکس {transmission_type}
 {post_top_description}
 {post_middle_description}
 {post_bottom_description}

@@ -184,6 +184,7 @@ while True:
 
             offer_price = int(seo_linked_data[i].get('offers', {}).get('price', "0"))
             if offer_price > 2500000000 or offer_price < 800000000:
+                print(offer_price)
                 continue
 
             post_title = list_widgets[i].get('data', {}).get('title', "")

@@ -199,18 +199,19 @@ while True:
 
             telegram_message = f"""<b>{post_title}</b>
             
-رنگ {vehicle_color}
-گیربکس {transmission_type}
 {post_top_description}
 {post_middle_description}
-{post_bottom_description}
-توضیحات:
+
+رنگ {vehicle_color}
+گیربکس {transmission_type}
+توضیحات
 {vehicle_description}
+
+<a href="{ad_url}">لینک مشاهده آگهی</a>
+
+{post_bottom_description}
 تعداد تصاویر: {image_count}
 <a href="{image_url}"> </a>
-<a href="{ad_url}">مشاهده آگهی</a>
-
-_
             """
             send_telegram_message(telegram_message)
 

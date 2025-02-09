@@ -125,7 +125,7 @@ divar_post_request = {
                 },
                 "price": {
                     "number_range": {
-                        "maximum": "300000000"
+                        "maximum": "250000000"
                     }
                 },
                 "production-year": {
@@ -182,6 +182,10 @@ while True:
         if post_token not in loaded_tokens:
             loaded_tokens.append(post_token)
 
+            offer_price = int(seo_linked_data[i].get('offers', {}).get('price', "0"))
+            if offer_price > 2500000000 or offer_price < 800000000:
+                continue
+
             post_title = list_widgets[i].get('data', {}).get('title', "")
             vehicle_color = seo_linked_data[i].get('color', "")
             transmission_type = seo_linked_data[i].get('vehicleTransmission', "")
@@ -219,4 +223,3 @@ _
         break
 
 save_divar_tokens(loaded_tokens)
-print(loaded_tokens)

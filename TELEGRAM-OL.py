@@ -186,8 +186,12 @@ while True:
             if offer_price > 2500000000 or offer_price < 800000000:
                 print(offer_price)
                 continue
-
+            if "0" not in str(offer_price):
+                continue
             post_title = list_widgets[i].get('data', {}).get('title', "")
+            if "مدل" not in post_title:
+                continue
+
             vehicle_color = seo_linked_data[i].get('color', "")
             transmission_type = seo_linked_data[i].get('vehicleTransmission', "")
             post_top_description = list_widgets[i].get('data', {}).get('top_description_text', "")
@@ -199,20 +203,18 @@ while True:
             ad_url = seo_linked_data[i].get('url', "")
 
             telegram_message = f"""<b>{post_title}</b>
-            
-{post_top_description}
-{post_middle_description}
+<b>{post_middle_description}</b>
 
+{vehicle_description}
+کارکرد {post_top_description}
 رنگ {vehicle_color}
 گیربکس {transmission_type}
-توضیحات
-{vehicle_description}
 
 <a href="{ad_url}">لینک مشاهده آگهی</a>
-
+<a href="{image_url}">   </a>
 {post_bottom_description}
-تعداد تصاویر: {image_count}
-<a href="{image_url}"> </a>
+تعداد تصاویر {image_count} عدد
+
             """
             send_telegram_message(telegram_message)
 

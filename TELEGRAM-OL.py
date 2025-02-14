@@ -186,16 +186,14 @@ while True:
             if offer_price > 2000000000 or offer_price < 600000000:
                 print(offer_price)
                 continue
-
+            if "0" not in str(offer_price):
+                continue
             post_title = list_widgets[i].get('data', {}).get('title', "")
 
             vehicle_color = seo_linked_data[i].get('color', "")
             transmission_type = seo_linked_data[i].get('vehicleTransmission', "")
             post_top_description = list_widgets[i].get('data', {}).get('top_description_text', "")
             post_middle_description = list_widgets[i].get('data', {}).get('middle_description_text', "")
-            if "0" not in post_middle_description:
-                continue
-            
             post_bottom_description = list_widgets[i].get('data', {}).get('bottom_description_text', "")
             vehicle_description = seo_linked_data[i].get('description', "")
             image_count = list_widgets[i].get('data', {}).get('image_count', "0")

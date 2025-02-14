@@ -125,12 +125,12 @@ divar_post_request = {
                 },
                 "price": {
                     "number_range": {
-                        "maximum": "250000000"
+                        "maximum": "200000000"
                     }
                 },
                 "production-year": {
                     "number_range": {
-                        "minimum": "1385"
+                        "minimum": "1388"
                     }
                 }
             }
@@ -183,22 +183,22 @@ while True:
             loaded_tokens.append(post_token)
 
             offer_price = int(seo_linked_data[i].get('offers', {}).get('price', "0"))
-            if offer_price > 2500000000 or offer_price < 800000000:
+            if offer_price > 2000000000 or offer_price < 600000000:
                 print(offer_price)
                 continue
-            if "0" not in str(offer_price):
-                continue
+
             post_title = list_widgets[i].get('data', {}).get('title', "")
-            if "مدل" not in post_title:
-                continue
 
             vehicle_color = seo_linked_data[i].get('color', "")
             transmission_type = seo_linked_data[i].get('vehicleTransmission', "")
             post_top_description = list_widgets[i].get('data', {}).get('top_description_text', "")
             post_middle_description = list_widgets[i].get('data', {}).get('middle_description_text', "")
+            if "0" not in post_middle_description:
+                continue
+            
             post_bottom_description = list_widgets[i].get('data', {}).get('bottom_description_text', "")
             vehicle_description = seo_linked_data[i].get('description', "")
-            image_count = list_widgets[i].get('data', {}).get('image_count', "")
+            image_count = list_widgets[i].get('data', {}).get('image_count', "0")
             image_url = list_widgets[i].get('data', {}).get('image_url', "")
             ad_url = seo_linked_data[i].get('url', "")
 

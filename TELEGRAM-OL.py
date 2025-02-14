@@ -130,7 +130,7 @@ divar_post_request = {
                 },
                 "production-year": {
                     "number_range": {
-                        "minimum": "1388"
+                        "minimum": "1386"
                     }
                 }
             }

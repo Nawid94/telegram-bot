@@ -8,7 +8,7 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 20       # جلوگیری از اجرای طولانی و سوختن سهمیه
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -32,4 +32,5 @@ jobs:
           REDIS_PORT: ${{ secrets.REDIS_PORT }}
           REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          DIVAR_SEARCH_UID: ${{ secrets.DIVAR_SEARCH_UID }}
         run: python TELEGRAM-OL.py

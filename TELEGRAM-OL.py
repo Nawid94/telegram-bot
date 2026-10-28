@@ -15,6 +15,25 @@ import redis
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("divar-bot")
 
+# ==================================================================
+# ⚙️ تنظیمات فیلترها (اینجا را تغییر دهید)
+# ==================================================================
+# ۱. حداکثر قیمت برای جستجو در دیوار (به تومان)
+# ۱ میلیارد و ۸۰۰ میلیون تومان
+SEARCH_MAX_PRICE_TOMAN = 1_800_000_000
+
+# ۲. حداقل سال ساخت برای جستجو در دیوار
+# ۱۳۲۰
+SEARCH_MIN_YEAR = "1320"
+
+# ۳. فیلترهای سمت پایتون (قیمت‌ها در API دیوار به ریال هستند)
+# برای ۱ میلیارد و ۸۰۰ میلیون تومان باید ۱۸,۰۰۰,۰۰۰,۰۰۰ ریال بنویسید
+FILTER_MAX_PRICE_RIAL = 18_000_000_000
+# برای ۵۰ میلیون تومان باید ۵۰۰,۰۰۰,۰۰۰ ریال بنویسید
+FILTER_MIN_PRICE_RIAL = 500_000_000
+# ==================================================================
+
+
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
@@ -26,7 +45,6 @@ REDIS_USERNAME = os.getenv("REDIS_USERNAME") or "default"
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 DIVAR_SEARCH_UID = os.getenv("DIVAR_SEARCH_UID", "722d47b0-5c96-44ba-9298-7a9c79edc9ac")
 
-# اعتبارسنجی متغیرهای محیطی ضروری
 missing = [k for k, v in {
     "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
     "TELEGRAM_CHAT_ID": TELEGRAM_CHAT_ID,
@@ -39,9 +57,6 @@ if missing:
 
 DIVAR_API_URL = "https://api.divar.ir/v8/postlist/w/search"
 TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-
-# حداقل تعداد توکن در مخزن جدید برای اینکه اجازه پاک‌سازی بدهیم
-# (جلوگیری از پاک‌شدن حافظه در صورت خرابی موقت API دیوار)
 MIN_POOL_SIZE_FOR_PRUNE = 20
 
 # ------------------------------------------------------------------
@@ -66,7 +81,6 @@ except Exception as e:
 # Helpers
 # ------------------------------------------------------------------
 def request_with_retry(url, timeout=20, **kwargs):
-    """POST با حداکثر ۳ تلاش و backoff نمایی."""
     last_exc = None
     for attempt in range(1, 4):
         try:
@@ -82,7 +96,6 @@ def request_with_retry(url, timeout=20, **kwargs):
         raise last_exc
     raise RuntimeError(f"Request to {url} failed after 3 attempts")
 
-
 def load_tokens():
     try:
         data = redis_client.get("divar_tokens")
@@ -91,13 +104,11 @@ def load_tokens():
         log.warning("Failed to load tokens from Redis: %s", e)
         return []
 
-
 def save_tokens(tokens_list):
     try:
         redis_client.set("divar_tokens", json.dumps(tokens_list))
     except Exception as e:
         log.error("Failed to save tokens to Redis: %s", e)
-
 
 def send_telegram(text):
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
@@ -111,9 +122,6 @@ def send_telegram(text):
         log.error("Telegram request failed: %s", e)
         return False
 
-# ------------------------------------------------------------------
-# City list
-# ------------------------------------------------------------------
 CITY_IDS = [
     "12", "824", "825", "1852", "1812", "1688", "1854", "708", "1841", "829", "1855",
     "1850", "864", "1686", "1844", "1847", "1689", "1809", "1814", "1851", "1839", "1835",
@@ -122,9 +130,6 @@ CITY_IDS = [
     "1853", "1815", "1834", "1969", "1983", "1994", "2000", "2004", "2007", "2011",
 ]
 
-# ------------------------------------------------------------------
-# Bootstrap (اجرای اول وقتی Redis خالی است)
-# ------------------------------------------------------------------
 def bootstrap_tokens():
     log.info("Redis empty — bootstrapping tokens for last 50 days")
     req = {
@@ -180,9 +185,6 @@ def bootstrap_tokens():
     log.info("Bootstrap collected %d unique tokens", len(tokens))
     return list(tokens)
 
-# ------------------------------------------------------------------
-# Search request builder
-# ------------------------------------------------------------------
 def build_search_request():
     return {
         "city_ids": CITY_IDS,
@@ -199,8 +201,8 @@ def build_search_request():
             "form_data": {
                 "data": {
                     "category": {"str": {"value": "cars"}},
-                    "price": {"number_range": {"maximum": "200000000"}},
-                    "production-year": {"number_range": {"minimum": "1386"}},
+                    "price": {"number_range": {"maximum": str(SEARCH_MAX_PRICE_TOMAN)}},
+                    "production-year": {"number_range": {"minimum": str(SEARCH_MIN_YEAR)}},
                 }
             },
             "server_payload": {
@@ -212,9 +214,6 @@ def build_search_request():
         },
     }
 
-# ------------------------------------------------------------------
-# Formatting
-# ------------------------------------------------------------------
 def format_message(widget, seo):
     d = widget.get("data", {}) or {}
     title = html.escape(d.get("title") or "")
@@ -241,13 +240,9 @@ def format_message(widget, seo):
         f"تعداد تصاویر {image_count} عدد\n"
     )
 
-# ------------------------------------------------------------------
-# Main
-# ------------------------------------------------------------------
 def run():
     old_pool = set(load_tokens())
 
-    # ---- Bootstrap (اجرای اول) ----
     if not old_pool:
         boot = bootstrap_tokens()
         save_tokens(boot)
@@ -269,13 +264,12 @@ def run():
     first_dt = datetime.strptime(first_date, "%Y-%m-%dT%H:%M:%S.%fZ")
     date_limit = (first_dt - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
-    current_pool = set()     # تمام توکن‌های دیده‌شده در این جستجو (مخزن جدید)
-    new_tokens = []          # توکن‌هایی که برای اولین بار دیده شدند
+    current_pool = set()
+    new_tokens = []
     sent_count = 0
     page = 0
     search_completed = False
 
-    # ---- پیمایش صفحه‌ها ----
     while True:
         page += 1
         try:
@@ -296,21 +290,21 @@ def run():
             if not token:
                 continue
 
-            # هر توکنی که در نتایج می‌بینیم وارد مخزن جدید می‌شود
             current_pool.add(token)
 
             if token in old_pool:
-                continue  # قبلاً دیده شده، پیام نفرست
+                continue
 
             new_tokens.append(token)
             seo = seo_list[i] if i < len(seo_list) else {}
 
-            # فیلتر قیمت (۶۰ تا ۲۰۰ میلیون تومان)
+            # 🔍 اعمال فیلتر قیمت با متغیرهای بالای کد
             try:
                 price = int((seo.get("offers") or {}).get("price", "0"))
             except (TypeError, ValueError):
                 price = 0
-            if price > 2_000_000_000 or price < 600_000_000:
+            
+            if price > FILTER_MAX_PRICE_RIAL or price < FILTER_MIN_PRICE_RIAL:
                 continue
             if "0" not in str(price):
                 continue
@@ -319,12 +313,10 @@ def run():
                 sent_count += 1
             time.sleep(3)
 
-            # چک‌پوینت ایمن: اجتماع قدیم + جدید (نه پاک‌سازی)
             if len(new_tokens) % 10 == 0:
                 save_tokens(list(old_pool | set(new_tokens)))
                 log.info("Checkpoint (safe): %d tokens", len(old_pool | set(new_tokens)))
 
-        # کنترل پیمایش
         new_last = (data.get("pagination") or {}).get("data", {}).get("last_post_date")
         has_next = (data.get("pagination") or {}).get("has_next_page", False)
         if new_last and new_last < date_limit:
@@ -337,14 +329,9 @@ def run():
             search_completed = True
             break
 
-    # ---- مرحله نهایی: پاک‌سازی و جایگزینی ----
     if search_completed and len(current_pool) >= MIN_POOL_SIZE_FOR_PRUNE:
-        # گام ۱: اشتراک مخزن قدیم و جدید (توکن‌های هنوز معتبر)
         pruned_intersection = old_pool & current_pool
-
-        # گام ۲: مخزن جدید جایگزین مخزن قدیم می‌شود
         final_pool = current_pool
-
         log.info(
             "Prune OK — old=%d, current=%d, intersection=%d, removed=%d, final=%d",
             len(old_pool),
@@ -354,7 +341,6 @@ def run():
             len(final_pool),
         )
     else:
-        # حالت ایمن: جستجو کامل نشد یا تعداد نتایج مشکوک کم بود
         final_pool = old_pool | set(new_tokens)
         log.warning(
             "Prune skipped (completed=%s, current_pool=%d). Safe union: %d tokens",

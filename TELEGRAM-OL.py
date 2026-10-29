@@ -307,7 +307,7 @@ def run():
 
             if send_telegram(format_message(widget, seo)):
                 sent_count += 1
-            time.sleep(3)
+            time.sleep(1)
 
             if len(new_tokens) % 10 == 0:
                 save_tokens(list(old_pool | set(new_tokens)))

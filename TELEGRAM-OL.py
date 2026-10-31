@@ -22,7 +22,11 @@ log = logging.getLogger("divar-bot")
 # ۱ میلیارد و ۸۰۰ میلیون تومان
 SEARCH_MAX_PRICE_TOMAN = 1_800_000_000
 
-# ۲. فیلترهای سمت پایتون (قیمت‌ها در API دیوار به ریال هستند)
+# ۲. حداقل سال ساخت برای جستجو در دیوار (مثلاً 1390 یعنی مدل ۱۳۹۰ به بعد)
+# مقدار را حتماً به صورت رشته (داخل کوتیشن) بنویسید
+SEARCH_MIN_PRODUCTION_YEAR = "1390"
+
+# ۳. فیلترهای سمت پایتون (قیمت‌ها در API دیوار به ریال هستند)
 # برای ۱ میلیارد و ۸۰۰ میلیون تومان باید ۱۸,۰۰۰,۰۰۰,۰۰۰ ریال بنویسید
 FILTER_MAX_PRICE_RIAL = 18_000_000_000
 # برای ۵۰ میلیون تومان باید ۵۰۰,۰۰۰,۰۰۰ ریال بنویسید
@@ -198,7 +202,7 @@ def build_search_request():
                 "data": {
                     "category": {"str": {"value": "cars"}},
                     "price": {"number_range": {"maximum": str(SEARCH_MAX_PRICE_TOMAN)}},
-                    # فیلتر سال ساخت حذف شد
+                    "production_year": {"number_range": {"minimum": str(SEARCH_MIN_PRODUCTION_YEAR)}},
                 }
             },
             "server_payload": {
@@ -299,7 +303,7 @@ def run():
                 price = int((seo.get("offers") or {}).get("price", "0"))
             except (TypeError, ValueError):
                 price = 0
-            
+
             if price > FILTER_MAX_PRICE_RIAL or price < FILTER_MIN_PRICE_RIAL:
                 continue
             if "0" not in str(price):

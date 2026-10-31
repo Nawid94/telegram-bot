@@ -27,6 +27,9 @@ SEARCH_MIN_PRICE_TOMAN = 50_000_000
 # ۳. حداقل سال ساخت برای جستجو در دیوار (شمسی، مثلاً 1390)
 SEARCH_MIN_PRODUCTION_YEAR = "1390"
 
+# ==================================================================
+
+
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
@@ -129,6 +132,14 @@ def to_shamsi_year(value):
     if 1900 <= year <= 2100:  # میلادی → شمسی
         return str(year - 621)
     return str(year)
+
+PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+def to_persian_digits(value):
+    """تبدیل ارقام لاتین به فارسی."""
+    if value is None:
+        return ""
+    return str(value).translate(PERSIAN_DIGITS)
 
 CITY_IDS = [
     "12", "824", "825", "1852", "1812", "1688", "1854", "708", "1841", "829", "1855",
@@ -259,8 +270,8 @@ def format_message(widget, seo):
         or d.get("productionYear")
         or ""
     )
-    # تبدیل به شمسی
-    production_year = html.escape(to_shamsi_year(production_year_raw)) or "نامشخص"
+    # تبدیل به شمسی + ارقام فارسی
+    production_year = html.escape(to_persian_digits(to_shamsi_year(production_year_raw))) or "نامشخص"
 
     return (
         f"<b>{title}</b>\n"

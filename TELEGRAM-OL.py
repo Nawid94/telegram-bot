@@ -141,6 +141,22 @@ def to_persian_digits(value):
         return ""
     return str(value).translate(PERSIAN_DIGITS)
 
+def get_production_year(seo, widget):
+    """سال تولید را به شمسی و با ارقام فارسی برمی‌گرداند؛ اگر نامشخص بود رشته خالی."""
+    d = widget.get("data", {}) or {}
+    production_year_raw = (
+        seo.get("productionYear")
+        or seo.get("production_year")
+        or seo.get("vehicleModelDate")
+        or d.get("production_year")
+        or d.get("productionYear")
+        or ""
+    )
+    year = to_persian_digits(to_shamsi_year(production_year_raw))
+    if year in ("", "نامشخص"):
+        return ""
+    return year
+
 CITY_IDS = [
     "12", "824", "825", "1852", "1812", "1688", "1854", "708", "1841", "829", "1855",
     "1850", "864", "1686", "1844", "1847", "1689", "1809", "1814", "1851", "1839", "1835",
@@ -261,17 +277,8 @@ def format_message(widget, seo):
     image_url = d.get("image_url", "")
     ad_url = seo.get("url", "")
 
-    # 🔍 استخراج سال تولید از چند کلید احتمالی
-    production_year_raw = (
-        seo.get("productionYear")
-        or seo.get("production_year")
-        or seo.get("vehicleModelDate")
-        or d.get("production_year")
-        or d.get("productionYear")
-        or ""
-    )
-    # تبدیل به شمسی + ارقام فارسی
-    production_year = html.escape(to_persian_digits(to_shamsi_year(production_year_raw))) or "نامشخص"
+    # سال تولید (شمسی + ارقام فارسی)
+    production_year = html.escape(get_production_year(seo, widget)) or "نامشخص"
 
     return (
         f"<b>{title}</b>\n"
@@ -343,7 +350,19 @@ def run():
                 continue
 
             new_tokens.append(token)
+
             seo = seo_list[i] if i < len(seo_list) else {}
+
+            # ⛔ اگر کلمه «حواله» در عنوان آگهی باشد، به تلگرام ارسال نشود
+            title_raw = (widget.get("data") or {}).get("title") or ""
+            if "حواله" in title_raw:
+                log.info("Skipped Telegram send (title contains 'حواله'): %s", token)
+                continue
+
+            # ⛔ اگر سال تولید نامشخص باشد، به تلگرام ارسال نشود
+            if not get_production_year(seo, widget):
+                log.info("Skipped Telegram send (production year unknown): %s", token)
+                continue
 
             if send_telegram(format_message(widget, seo)):
                 sent_count += 1

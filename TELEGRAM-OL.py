@@ -19,20 +19,15 @@ log = logging.getLogger("divar-bot")
 # ⚙️ تنظیمات فیلترها (اینجا را تغییر دهید)
 # ==================================================================
 # ۱. حداکثر قیمت برای جستجو در دیوار (به تومان)
-# ۱ میلیارد و ۸۰۰ میلیون تومان
 SEARCH_MAX_PRICE_TOMAN = 1_800_000_000
 
-# ۲. حداقل سال ساخت برای جستجو در دیوار (مثلاً 1390 یعنی مدل ۱۳۹۰ به بعد)
-# مقدار را حتماً به صورت رشته (داخل کوتیشن) بنویسید
+# ۲. حداقل قیمت برای جستجو در دیوار (به تومان) - اختیاری
+SEARCH_MIN_PRICE_TOMAN = 50_000_000
+
+# ۳. حداقل سال ساخت برای جستجو در دیوار (مثلاً 1390 یعنی مدل ۱۳۹۰ به بعد)
 SEARCH_MIN_PRODUCTION_YEAR = "1390"
 
-# ۳. فیلترهای سمت پایتون (قیمت‌ها در API دیوار به ریال هستند)
-# برای ۱ میلیارد و ۸۰۰ میلیون تومان باید ۱۸,۰۰۰,۰۰۰,۰۰۰ ریال بنویسید
-FILTER_MAX_PRICE_RIAL = 18_000_000_000
-# برای ۵۰ میلیون تومان باید ۵۰۰,۰۰۰,۰۰۰ ریال بنویسید
-FILTER_MIN_PRICE_RIAL = 500_000_000
 # ==================================================================
-
 
 # ------------------------------------------------------------------
 # Config
@@ -186,6 +181,16 @@ def bootstrap_tokens():
     return list(tokens)
 
 def build_search_request():
+    """
+    ساخت درخواست جستجو با فیلترهای قیمت و سال ساخت.
+    طبق مستندات دیوار، مقادیر number_range باید رشته (string) باشند.
+    """
+    price_filter = {
+        "maximum": str(SEARCH_MAX_PRICE_TOMAN),
+    }
+    if SEARCH_MIN_PRICE_TOMAN is not None and SEARCH_MIN_PRICE_TOMAN > 0:
+        price_filter["minimum"] = str(SEARCH_MIN_PRICE_TOMAN)
+
     return {
         "city_ids": CITY_IDS,
         "pagination_data": {
@@ -201,8 +206,17 @@ def build_search_request():
             "form_data": {
                 "data": {
                     "category": {"str": {"value": "cars"}},
-                    "price": {"number_range": {"maximum": str(SEARCH_MAX_PRICE_TOMAN)}},
-                    "production_year": {"number_range": {"minimum": str(SEARCH_MIN_PRODUCTION_YEAR)}},
+                    "price": {
+                        "number_range": price_filter
+                    },
+                    "production-year": {
+                        "number_range": {
+                            "minimum": SEARCH_MIN_PRODUCTION_YEAR,
+                            "value": {
+                                "minimum": SEARCH_MIN_PRODUCTION_YEAR
+                            }
+                        }
+                    },
                 }
             },
             "server_payload": {
@@ -227,10 +241,22 @@ def format_message(widget, seo):
     image_url = d.get("image_url", "")
     ad_url = seo.get("url", "")
 
+    # 🔍 استخراج سال تولید از چند کلید احتمالی
+    production_year_raw = (
+        seo.get("productionYear")
+        or seo.get("production_year")
+        or seo.get("vehicleModelDate")
+        or d.get("production_year")
+        or d.get("productionYear")
+        or ""
+    )
+    production_year = html.escape(str(production_year_raw)) if production_year_raw else "نامشخص"
+
     return (
         f"<b>{title}</b>\n"
         f"<b>{middle}</b>\n\n"
         f"{desc}\n"
+        f"سال تولید {production_year}\n"
         f"کارکرد {top}\n"
         f"رنگ {color}\n"
         f"گیربکس {transmission}\n\n"
@@ -298,17 +324,7 @@ def run():
             new_tokens.append(token)
             seo = seo_list[i] if i < len(seo_list) else {}
 
-            # 🔍 اعمال فیلتر قیمت با متغیرهای بالای کد
-            try:
-                price = int((seo.get("offers") or {}).get("price", "0"))
-            except (TypeError, ValueError):
-                price = 0
-
-            if price > FILTER_MAX_PRICE_RIAL or price < FILTER_MIN_PRICE_RIAL:
-                continue
-            if "0" not in str(price):
-                continue
-
+            # فیلترهای قیمت حذف شدند؛ API دیوار از قبل نتایج را فیلتر کرده است.
             if send_telegram(format_message(widget, seo)):
                 sent_count += 1
             time.sleep(1)

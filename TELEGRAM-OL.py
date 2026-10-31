@@ -24,10 +24,8 @@ SEARCH_MAX_PRICE_TOMAN = 1_800_000_000
 # ۲. حداقل قیمت برای جستجو در دیوار (به تومان) - اختیاری
 SEARCH_MIN_PRICE_TOMAN = 50_000_000
 
-# ۳. حداقل سال ساخت برای جستجو در دیوار (مثلاً 1390 یعنی مدل ۱۳۹۰ به بعد)
+# ۳. حداقل سال ساخت برای جستجو در دیوار (شمسی، مثلاً 1390)
 SEARCH_MIN_PRODUCTION_YEAR = "1390"
-
-# ==================================================================
 
 # ------------------------------------------------------------------
 # Config
@@ -117,6 +115,21 @@ def send_telegram(text):
         log.error("Telegram request failed: %s", e)
         return False
 
+def to_shamsi_year(value):
+    """تبدیل سال میلادی (یا تاریخ کامل) به سال شمسی."""
+    if not value:
+        return ""
+    value_str = str(value).strip()
+    try:
+        year = int(value_str.split("-")[0].split("/")[0].split("T")[0])
+    except (ValueError, IndexError):
+        return value_str
+    if 1300 <= year <= 1500:  # از قبل شمسی
+        return str(year)
+    if 1900 <= year <= 2100:  # میلادی → شمسی
+        return str(year - 621)
+    return str(year)
+
 CITY_IDS = [
     "12", "824", "825", "1852", "1812", "1688", "1854", "708", "1841", "829", "1855",
     "1850", "864", "1686", "1844", "1847", "1689", "1809", "1814", "1851", "1839", "1835",
@@ -181,10 +194,6 @@ def bootstrap_tokens():
     return list(tokens)
 
 def build_search_request():
-    """
-    ساخت درخواست جستجو با فیلترهای قیمت و سال ساخت.
-    طبق مستندات دیوار، مقادیر number_range باید رشته (string) باشند.
-    """
     price_filter = {
         "maximum": str(SEARCH_MAX_PRICE_TOMAN),
     }
@@ -250,11 +259,12 @@ def format_message(widget, seo):
         or d.get("productionYear")
         or ""
     )
-    production_year = html.escape(str(production_year_raw)) if production_year_raw else "نامشخص"
+    # تبدیل به شمسی
+    production_year = html.escape(to_shamsi_year(production_year_raw)) or "نامشخص"
 
     return (
         f"<b>{title}</b>\n"
-        f"<b>{middle}</b>\n"
+        f"<b>{middle}</b>\n\n"
         f"{desc}\n"
         f"سال تولید {production_year}\n"
         f"کارکرد {top}\n"
@@ -324,7 +334,6 @@ def run():
             new_tokens.append(token)
             seo = seo_list[i] if i < len(seo_list) else {}
 
-            # فیلترهای قیمت حذف شدند؛ API دیوار از قبل نتایج را فیلتر کرده است.
             if send_telegram(format_message(widget, seo)):
                 sent_count += 1
             time.sleep(1)

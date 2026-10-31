@@ -254,7 +254,7 @@ def format_message(widget, seo):
 
     return (
         f"<b>{title}</b>\n"
-        f"<b>{middle}</b>\n\n"
+        f"<b>{middle}</b>\n"
         f"{desc}\n"
         f"سال تولید {production_year}\n"
         f"کارکرد {top}\n"

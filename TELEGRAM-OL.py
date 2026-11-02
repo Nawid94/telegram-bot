@@ -1,4 +1,4 @@
-import os
+1386import os
 import sys
 import html
 import time
@@ -25,7 +25,7 @@ SEARCH_MAX_PRICE_TOMAN = 1_800_000_000
 SEARCH_MIN_PRICE_TOMAN = 50_000_000
 
 # ۳. حداقل سال ساخت برای جستجو در دیوار (شمسی، مثلاً 1390)
-SEARCH_MIN_PRODUCTION_YEAR = "1390"
+SEARCH_MIN_PRODUCTION_YEAR = "1386"
 
 # ==================================================================
 

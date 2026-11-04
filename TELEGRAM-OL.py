@@ -66,6 +66,7 @@ if missing:
     sys.exit(1)
 
 DIVAR_API_URL = "https://api.divar.ir/v8/postlist/w/search"
+DIVAR_POST_DETAILS_URL = "https://api.divar.ir/v8/posts-v2/web/{token}"
 TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 MIN_POOL_SIZE_FOR_PRUNE = 20
 
@@ -74,6 +75,12 @@ DIVAR_SEARCH_UID = "5df7f4fd-5839-4108-accd-fda27178a0a5"
 
 # ─── پیشوند ثابت لینک آگهی دیوار ───
 DIVAR_AD_BASE_URL = "https://divar.ir/v/"
+
+# ─── تنظیمات غنی‌سازی ───
+ENRICH_TIMEOUT = 15
+ENRICH_MAX_ATTEMPTS = 3
+ENRICH_SLEEP_BEFORE = 0.5
+ENRICH_SLEEP_AFTER = 0.5
 
 # ------------------------------------------------------------------
 # Redis
@@ -96,6 +103,16 @@ except Exception as e:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
+ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩"
+
+def to_persian_digits(value):
+    """تبدیل ارقام لاتین به فارسی."""
+    if value is None:
+        return ""
+    return str(value).translate(str.maketrans("0123456789", PERSIAN_DIGITS))
+
+
 def request_with_retry(url, timeout=20, **kwargs):
     last_exc = None
     for attempt in range(1, 4):
@@ -147,6 +164,188 @@ def get_city(widget):
     d = widget.get("data", {}) or {}
     web_info = (d.get("action") or {}).get("payload", {}).get("web_info", {}) or {}
     return web_info.get("city_persian") or ""
+
+
+# ==================================================================
+# 🔍 غنی‌سازی — درخواست جزئیات کامل آگهی
+# ==================================================================
+def fetch_ad_details(token):
+    """درخواست به API جزئیات آگهی (posts-v2). در صورت خطا None برمی‌گرداند."""
+    url = DIVAR_POST_DETAILS_URL.format(token=token)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://divar.ir/",
+    }
+    for attempt in range(1, ENRICH_MAX_ATTEMPTS + 1):
+        try:
+            r = requests.get(url, headers=headers, timeout=ENRICH_TIMEOUT)
+            if r.status_code == 200:
+                return r.json()
+            log.warning("Details HTTP %s on attempt %d for %s", r.status_code, attempt, token)
+            # 404 = آگهی حذف شده — دوباره تلاش نکن
+            if r.status_code == 404:
+                return None
+        except requests.RequestException as e:
+            log.warning("Details error on attempt %d for %s: %s", attempt, token, e)
+        time.sleep(2 ** attempt)
+    log.warning("Details fetch failed after retries for %s", token)
+    return None
+
+
+def extract_details(raw):
+    """استخراج فیلدهای مفید از پاسخ posts-v2."""
+    result = {
+        "brand_model": "", "year": "", "price": "", "color": "",
+        "mileage": "", "insurance": "", "description": "",
+        "image_url": "", "image_count": 0,
+    }
+    if not raw:
+        return result
+
+    seo = raw.get("seo") or {}
+    schema = seo.get("post_seo_schema") or {}
+
+    # ─── فیلدهای پایه از schema ───
+    result["color"] = schema.get("color") or ""
+    result["price"] = str((schema.get("offers") or {}).get("price") or "")
+    result["mileage"] = str((schema.get("mileageFromOdometer") or {}).get("value") or "")
+    result["description"] = schema.get("description") or ""
+    result["image_url"] = schema.get("image") or ""
+
+    brand_obj = schema.get("brand")
+    if isinstance(brand_obj, dict):
+        result["brand_model"] = brand_obj.get("name") or ""
+    elif isinstance(brand_obj, str):
+        result["brand_model"] = brand_obj
+
+    # ─── فیلدهای تکمیلی از sections ───
+    for sec in raw.get("sections") or []:
+        for w in sec.get("widgets") or []:
+            wt = w.get("widget_type")
+            d = w.get("data") or {}
+
+            if wt == "GROUP_INFO_ROW":
+                for item in d.get("items") or []:
+                    t = (item.get("title") or "").strip()
+                    v = item.get("value")
+                    if "سال تولید" in t:
+                        v_str = str(v) if v is not None else ""
+                        if " - " in v_str:
+                            result["year"] = v_str.split(" - ")[0].strip()
+                        else:
+                            result["year"] = v_str.strip()
+
+            elif wt == "UNEXPANDABLE_ROW":
+                t = (d.get("title") or "").strip()
+                v = str(d.get("value") or "")
+                if "برند و مدل" in t and v:
+                    result["brand_model"] = v
+                elif "بیمه" in t and v:
+                    result["insurance"] = v
+
+            elif wt == "IMAGE_CAROUSEL":
+                result["image_count"] = len(d.get("items") or [])
+
+    return result
+
+
+# ==================================================================
+# 📨 ساخت پیام
+# ==================================================================
+def format_message(widget, details=None):
+    """پیام تلگرام را می‌سازد — با اطلاعات غنی‌شده اگر details موجود باشد."""
+    d = widget.get("data", {}) or {}
+    title = html.escape(d.get("title") or "")
+    red_text = html.escape(d.get("red_text") or "")
+    city = html.escape(get_city(widget))
+    token = d.get("token", "")
+    ad_url = f"{DIVAR_AD_BASE_URL}{token}" if token else ""
+
+    if not details:
+        # ─── Fallback: پیام ساده از widget ───
+        middle = html.escape(d.get("middle_description_text") or "")
+        top = html.escape(d.get("top_description_text") or "")
+        image_url = d.get("image_url", "")
+        image_count = d.get("image_count", "0")
+
+        parts = [f"<b>{title}</b>"]
+        if middle:
+            parts.append(f"<b>{middle}</b>")
+        parts.append("")
+        if top:
+            parts.append(f"کارکرد {top}")
+        if city:
+            parts.append(f"شهر {city}")
+        parts.append("")
+        if ad_url:
+            parts.append(f'<a href="{ad_url}">لینک مشاهده آگهی</a>')
+        if image_url:
+            parts.append(f'<a href="{image_url}">   </a>')
+        parts.append(f"تعداد تصاویر {image_count} عدد")
+        return "\n".join(parts)
+
+    # ─── پیام کامل از details ───
+    brand_model = html.escape(details.get("brand_model") or "")
+    year = details.get("year") or ""
+    price = details.get("price") or ""
+    color = html.escape(details.get("color") or "")
+    mileage = details.get("mileage") or ""
+    insurance = html.escape(details.get("insurance") or "")
+    description = html.escape(details.get("description") or "")
+    image_url = details.get("image_url") or ""
+    image_count = details.get("image_count") or 0
+
+    parts = [f"<b>{title}</b>"]
+    parts.append("")
+    # خط سوم: برند و مدل - سال
+    brand_line_parts = []
+    if brand_model:
+        brand_line_parts.append(brand_model)
+    if year:
+        brand_line_parts.append(f"سال {to_persian_digits(year)}")
+    if brand_line_parts:
+        parts.append(f"<b>{' - '.join(brand_line_parts)}</b>")
+
+    if price:
+        try:
+            parts.append(f"قیمت: {to_persian_digits(f'{int(price):,}')} تومان")
+        except ValueError:
+            parts.append(f"قیمت: {price}")
+
+    if color:
+        parts.append(f"رنگ: {color}")
+
+    if mileage:
+        try:
+            parts.append(f"کارکرد: {to_persian_digits(f'{int(mileage):,}')} کیلومتر")
+        except ValueError:
+            parts.append(f"کارکرد: {mileage}")
+
+    if insurance:
+        parts.append(f"بیمه: {insurance}")
+
+    if red_text:
+        parts.append(red_text)
+
+    if city:
+        parts.append(f"شهر {city}")
+
+    parts.append("")
+
+    if description:
+        parts.append(description)
+        parts.append("")
+
+    if ad_url:
+        parts.append(f'<a href="{ad_url}">لینک مشاهده آگهی</a>')
+        parts.append("")
+    if image_url:
+        parts.append(f'<a href="{image_url}">   </a>')
+    if image_count:
+        parts.append(f"تعداد تصاویر {to_persian_digits(image_count)} عدد")
+
+    return "\n".join(parts)
 
 
 # ==================================================================
@@ -208,7 +407,7 @@ def build_search_request():
 def bootstrap_tokens():
     """پُرکردن اولیهٔ Redis با توکن‌های ۵۰ روز اخیر (بدون ارسال پیام)."""
     log.info("Redis empty — bootstrapping tokens for last 50 days")
-    req = build_search_request()   # ← فیلترها اعمال می‌شن
+    req = build_search_request()
 
     try:
         resp = request_with_retry(DIVAR_API_URL, json=req)
@@ -252,37 +451,6 @@ def bootstrap_tokens():
     return list(tokens)
 
 
-def format_message(widget):
-    """پیام تلگرام را فقط از فیلدهای موجود در data و web_info می‌سازد."""
-    d = widget.get("data", {}) or {}
-    title = html.escape(d.get("title") or "")
-    middle = html.escape(d.get("middle_description_text") or "")
-    top = html.escape(d.get("top_description_text") or "")
-    image_count = d.get("image_count", "0")
-    image_url = d.get("image_url", "")
-    city = html.escape(get_city(widget))
-
-    # ─── لینک آگهی از توکن ───
-    token = d.get("token", "")
-    ad_url = f"{DIVAR_AD_BASE_URL}{token}" if token else ""
-
-    parts = [
-        f"<b>{title}</b>",
-        f"<b>{middle}</b>",
-        f"کارکرد {top}",
-    ]
-    if city:
-        parts.append(f"شهر {city}")
-    parts.append("")
-    if ad_url:
-        parts.append(f'<a href="{ad_url}">لینک مشاهده آگهی</a>')
-    if image_url:
-        parts.append(f'<a href="{image_url}">   </a>')
-    parts.append(f"تعداد تصاویر {image_count} عدد")
-
-    return "\n".join(parts)
-
-
 def run():
     old_pool = set(load_tokens())
 
@@ -310,6 +478,7 @@ def run():
     current_pool = set()
     new_tokens = []
     sent_count = 0
+    enriched_count = 0
     page = 0
     search_completed = False
 
@@ -342,7 +511,17 @@ def run():
                 log.info("Skipped Telegram send (title contains 'حواله'): %s", token)
                 continue
 
-            if send_telegram(format_message(widget)):
+            # 🔍 غنی‌سازی: درخواست جزئیات کامل آگهی
+            time.sleep(ENRICH_SLEEP_BEFORE)
+            raw_details = fetch_ad_details(token)
+            details = None
+            if raw_details:
+                details = extract_details(raw_details)
+                enriched_count += 1
+            else:
+                log.warning("Enrichment failed, sending basic message: %s", token)
+
+            if send_telegram(format_message(widget, details)):
                 sent_count += 1
             time.sleep(1)
 
@@ -381,7 +560,10 @@ def run():
         )
 
     save_tokens(list(final_pool))
-    log.info("Run complete. Sent %d new ads. Memory: %d tokens.", sent_count, len(final_pool))
+    log.info(
+        "Run complete. Sent %d new ads (%d enriched). Memory: %d tokens.",
+        sent_count, enriched_count, len(final_pool),
+    )
 
 
 if __name__ == "__main__":

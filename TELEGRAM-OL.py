@@ -18,15 +18,30 @@ log = logging.getLogger("divar-bot")
 # ==================================================================
 # ⚙️ تنظیمات فیلترها (اینجا را تغییر دهید)
 # ==================================================================
-# ۱. حداکثر قیمت برای جستجو در دیوار (به تومان)
-SEARCH_MAX_PRICE_TOMAN = 1_800_000_000
-
-# ۲. حداقل قیمت برای جستجو در دیوار (به تومان) - اختیاری
+SEARCH_MAX_PRICE_TOMAN = 1_600_000_000
 SEARCH_MIN_PRICE_TOMAN = 50_000_000
-
-# ۳. حداقل سال ساخت برای جستجو در دیوار (شمسی، مثلاً 1390)
 SEARCH_MIN_PRODUCTION_YEAR = "1386"
 
+# ─── فیلترهای سمت سرور — دقیقاً مطابق payload واقعی دیوار ───
+SERVER_CATEGORY       = "light"
+SERVER_CHASSIS_STATUS = "both-healthy"
+SERVER_MOTOR_STATUS   = "healthy"
+SERVER_BODY_STATUS    = ["intact", "some-scratches"]
+SERVER_FUEL_TYPE      = ["benzine"]
+
+# 🌆 شهرهای فعال — شهرهای یک استان (طبق payload واقعی)
+TARGET_CITY_IDS = ["889"]
+
+# ==================================================================
+# 🌆 لیست منتخب شهرها (فقط جهت مراجعه — کامنت‌شده)
+# ------------------------------------------------------------------
+# CITY_IDS_REFERENCE = [
+#     "12", "824", "825", "1852", "1812", "1688", "1854", "708", "1841", "829", "1855",
+#     "1850", "864", "1686", "1844", "1847", "1689", "1809", "1814", "1851", "1839", "1835",
+#     "1684", "1810", "1849", "826", "1683", "1811", "861", "1813", "1845", "827", "860", "863",
+#     "1840", "1843", "1687", "1846", "746", "1690", "828", "1836", "1842", "1837", "1848", "862",
+#     "1853", "1815", "1834", "1969", "1983", "1994", "2000", "2004", "2007", "2011",
+# ]
 # ==================================================================
 
 
@@ -39,7 +54,6 @@ REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = int(os.getenv("REDIS_PORT") or 6379)
 REDIS_USERNAME = os.getenv("REDIS_USERNAME") or "default"
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-DIVAR_SEARCH_UID = os.getenv("DIVAR_SEARCH_UID", "722d47b0-5c96-44ba-9298-7a9c79edc9ac")
 
 missing = [k for k, v in {
     "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
@@ -54,6 +68,12 @@ if missing:
 DIVAR_API_URL = "https://api.divar.ir/v8/postlist/w/search"
 TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 MIN_POOL_SIZE_FOR_PRUNE = 20
+
+# ─── شناسهٔ سشن جستجوی دیوار (ثابت، بدون نیاز به env) ───
+DIVAR_SEARCH_UID = "5df7f4fd-5839-4108-accd-fda27178a0a5"
+
+# ─── پیشوند ثابت لینک آگهی دیوار ───
+DIVAR_AD_BASE_URL = "https://divar.ir/v/"
 
 # ------------------------------------------------------------------
 # Redis
@@ -92,6 +112,7 @@ def request_with_retry(url, timeout=20, **kwargs):
         raise last_exc
     raise RuntimeError(f"Request to {url} failed after 3 attempts")
 
+
 def load_tokens():
     try:
         data = redis_client.get("divar_tokens")
@@ -100,11 +121,13 @@ def load_tokens():
         log.warning("Failed to load tokens from Redis: %s", e)
         return []
 
+
 def save_tokens(tokens_list):
     try:
         redis_client.set("divar_tokens", json.dumps(tokens_list))
     except Exception as e:
         log.error("Failed to save tokens to Redis: %s", e)
+
 
 def send_telegram(text):
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
@@ -118,66 +141,67 @@ def send_telegram(text):
         log.error("Telegram request failed: %s", e)
         return False
 
-def to_shamsi_year(value):
-    """تبدیل سال میلادی (یا تاریخ کامل) به سال شمسی."""
-    if not value:
-        return ""
-    value_str = str(value).strip()
-    try:
-        year = int(value_str.split("-")[0].split("/")[0].split("T")[0])
-    except (ValueError, IndexError):
-        return value_str
-    if 1300 <= year <= 1500:  # از قبل شمسی
-        return str(year)
-    if 1900 <= year <= 2100:  # میلادی → شمسی
-        return str(year - 621)
-    return str(year)
 
-PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+# ==================================================================
+# 🔧 فیلترهای سمت سرور — دقیقاً مطابق payload واقعی دیوار
+# ==================================================================
+def build_search_request():
+    price_inner = {"maximum": str(SEARCH_MAX_PRICE_TOMAN)}
+    if SEARCH_MIN_PRICE_TOMAN is not None and SEARCH_MIN_PRICE_TOMAN > 0:
+        price_inner["minimum"] = str(SEARCH_MIN_PRICE_TOMAN)
 
-def to_persian_digits(value):
-    """تبدیل ارقام لاتین به فارسی."""
-    if value is None:
-        return ""
-    return str(value).translate(PERSIAN_DIGITS)
+    # تکرار داخل value — دقیقاً مطابق فرمت واقعی دیوار
+    price_filter = dict(price_inner)
+    price_filter["value"] = dict(price_inner)
 
-def get_production_year(seo, widget):
-    """سال تولید را به شمسی و با ارقام فارسی برمی‌گرداند؛ اگر نامشخص بود رشته خالی."""
-    d = widget.get("data", {}) or {}
-    production_year_raw = (
-        seo.get("productionYear")
-        or seo.get("production_year")
-        or seo.get("vehicleModelDate")
-        or d.get("production_year")
-        or d.get("productionYear")
-        or ""
-    )
-    year = to_persian_digits(to_shamsi_year(production_year_raw))
-    if year in ("", "نامشخص"):
-        return ""
-    return year
-
-CITY_IDS = [
-    "12", "824", "825", "1852", "1812", "1688", "1854", "708", "1841", "829", "1855",
-    "1850", "864", "1686", "1844", "1847", "1689", "1809", "1814", "1851", "1839", "1835",
-    "1684", "1810", "1849", "826", "1683", "1811", "861", "1813", "1845", "827", "860", "863",
-    "1840", "1843", "1687", "1846", "746", "1690", "828", "1836", "1842", "1837", "1848", "862",
-    "1853", "1815", "1834", "1969", "1983", "1994", "2000", "2004", "2007", "2011",
-]
-
-def bootstrap_tokens():
-    log.info("Redis empty — bootstrapping tokens for last 50 days")
-    req = {
-        "city_ids": CITY_IDS,
+    return {
+        "source_view": "FILTER",
+        "city_ids": TARGET_CITY_IDS,
         "pagination_data": {
             "@type": "type.googleapis.com/post_list.PaginationData",
             "last_post_date": None,
             "page": 1,
             "layer_page": 1,
+            "search_uid": DIVAR_SEARCH_UID,
         },
         "disable_recommendation": False,
-        "search_data": {"form_data": {"data": {"category": {"str": {"value": "cars"}}}}},
+        "map_state": {"camera_info": {"bbox": {}}},
+        "search_data": {
+            "form_data": {
+                "data": {
+                    "category":       {"str": {"value": SERVER_CATEGORY}},
+                    "chassis_status": {"str": {"value": SERVER_CHASSIS_STATUS}},
+                    "motor_status":   {"str": {"value": SERVER_MOTOR_STATUS}},
+                    "body_status":    {"repeated_string": {"value": SERVER_BODY_STATUS}},
+                    "fuel_type":      {"repeated_string": {"value": SERVER_FUEL_TYPE}},
+                    "price":          {"number_range": price_filter},
+                    "production-year": {
+                        "number_range": {
+                            "minimum": SEARCH_MIN_PRODUCTION_YEAR,
+                            "value": {"minimum": SEARCH_MIN_PRODUCTION_YEAR},
+                        }
+                    },
+                }
+            },
+            "server_payload": {
+                "@type": "type.googleapis.com/widgets.SearchData.ServerPayload",
+                "additional_form_data": {
+                    "data": {"sort": {"str": {"value": "sort_date"}}}
+                },
+            },
+        },
+        "user_selected_location": {
+            "places": [{"place_id": cid} for cid in TARGET_CITY_IDS]
+        },
+        "previous_user_selected_location": {"places": []},
     }
+# ==================================================================
+
+
+def bootstrap_tokens():
+    """پُرکردن اولیهٔ Redis با توکن‌های ۵۰ روز اخیر (بدون ارسال پیام)."""
+    log.info("Redis empty — bootstrapping tokens for last 50 days")
+    req = build_search_request()   # ← فیلترها اعمال می‌شن
 
     try:
         resp = request_with_retry(DIVAR_API_URL, json=req)
@@ -220,79 +244,37 @@ def bootstrap_tokens():
     log.info("Bootstrap collected %d unique tokens", len(tokens))
     return list(tokens)
 
-def build_search_request():
-    price_filter = {
-        "maximum": str(SEARCH_MAX_PRICE_TOMAN),
-    }
-    if SEARCH_MIN_PRICE_TOMAN is not None and SEARCH_MIN_PRICE_TOMAN > 0:
-        price_filter["minimum"] = str(SEARCH_MIN_PRICE_TOMAN)
 
-    return {
-        "city_ids": CITY_IDS,
-        "pagination_data": {
-            "@type": "type.googleapis.com/post_list.PaginationData",
-            "last_post_date": None,
-            "page": 1,
-            "layer_page": 1,
-            "search_uid": DIVAR_SEARCH_UID,
-        },
-        "disable_recommendation": False,
-        "map_state": {"camera_info": {"bbox": {}}},
-        "search_data": {
-            "form_data": {
-                "data": {
-                    "category": {"str": {"value": "cars"}},
-                    "price": {
-                        "number_range": price_filter
-                    },
-                    "production-year": {
-                        "number_range": {
-                            "minimum": SEARCH_MIN_PRODUCTION_YEAR,
-                            "value": {
-                                "minimum": SEARCH_MIN_PRODUCTION_YEAR
-                            }
-                        }
-                    },
-                }
-            },
-            "server_payload": {
-                "@type": "type.googleapis.com/widgets.SearchData.ServerPayload",
-                "additional_form_data": {
-                    "data": {"sort": {"str": {"value": "sort_date"}}}
-                },
-            },
-        },
-    }
-
-def format_message(widget, seo):
+def format_message(widget):
+    """پیام تلگرام را فقط از فیلدهای موجود در data می‌سازد."""
     d = widget.get("data", {}) or {}
     title = html.escape(d.get("title") or "")
     middle = html.escape(d.get("middle_description_text") or "")
     top = html.escape(d.get("top_description_text") or "")
     bottom = html.escape(d.get("bottom_description_text") or "")
-    desc = html.escape(seo.get("description") or "")
-    color = html.escape(seo.get("color") or "")
-    transmission = html.escape(seo.get("vehicleTransmission") or "")
     image_count = d.get("image_count", "0")
     image_url = d.get("image_url", "")
-    ad_url = seo.get("url", "")
 
-    # سال تولید (شمسی + ارقام فارسی)
-    production_year = html.escape(get_production_year(seo, widget)) or "نامشخص"
+    # ─── لینک آگهی از توکن ───
+    token = d.get("token", "")
+    ad_url = f"{DIVAR_AD_BASE_URL}{token}" if token else ""
 
-    return (
-        f"<b>{title}</b>\n"
-        f"<b>{middle}</b>\n\n"
-        f"{desc}\n"
-        f"سال تولید {production_year}\n"
-        f"کارکرد {top}\n"
-        f"رنگ {color}\n"
-        f"گیربکس {transmission}\n\n"
-        f'<a href="{ad_url}">لینک مشاهده آگهی</a>\n'
-        f'<a href="{image_url}">   </a>\n'
-        f"{bottom}\n"
-        f"تعداد تصاویر {image_count} عدد\n"
-    )
+    parts = [
+        f"<b>{title}</b>",
+        f"<b>{middle}</b>",
+        "",
+        f"کارکرد {top}",
+        "",
+    ]
+    if ad_url:
+        parts.append(f'<a href="{ad_url}">لینک مشاهده آگهی</a>')
+    if image_url:
+        parts.append(f'<a href="{image_url}">   </a>')
+    parts.append(bottom)
+    parts.append(f"تعداد تصاویر {image_count} عدد")
+
+    return "\n".join(parts)
+
 
 def run():
     old_pool = set(load_tokens())
@@ -334,12 +316,8 @@ def run():
 
         data = resp.json()
         widgets = data.get("list_widgets") or []
-        seo_list = (data.get("seo_details") or {}).get("linked_data") or []
 
-        if len(widgets) != len(seo_list):
-            log.warning("Page %d: widget/seo mismatch (%d vs %d)", page, len(widgets), len(seo_list))
-
-        for i, widget in enumerate(widgets):
+        for widget in widgets:
             token = (widget.get("data") or {}).get("token", "")
             if not token:
                 continue
@@ -351,20 +329,13 @@ def run():
 
             new_tokens.append(token)
 
-            seo = seo_list[i] if i < len(seo_list) else {}
-
             # ⛔ اگر کلمه «حواله» در عنوان آگهی باشد، به تلگرام ارسال نشود
             title_raw = (widget.get("data") or {}).get("title") or ""
             if "حواله" in title_raw:
                 log.info("Skipped Telegram send (title contains 'حواله'): %s", token)
                 continue
 
-            # ⛔ اگر سال تولید نامشخص باشد، به تلگرام ارسال نشود
-            if not get_production_year(seo, widget):
-                log.info("Skipped Telegram send (production year unknown): %s", token)
-                continue
-
-            if send_telegram(format_message(widget, seo)):
+            if send_telegram(format_message(widget)):
                 sent_count += 1
             time.sleep(1)
 

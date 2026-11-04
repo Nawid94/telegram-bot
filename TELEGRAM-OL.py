@@ -303,27 +303,27 @@ def format_message(widget, details=None):
     if brand_model:
         brand_line_parts.append(brand_model)
     if year:
-        brand_line_parts.append(f"سال {to_persian_digits(year)}")
+        brand_line_parts.append(f"مدل {to_persian_digits(year)}")
     if brand_line_parts:
         parts.append(f"<b>{' - '.join(brand_line_parts)}</b>")
 
     if price:
         try:
-            parts.append(f"قیمت: {to_persian_digits(f'{int(price):,}')} تومان")
+            parts.append(f"قیمت {to_persian_digits(f'{int(price):,}')} تومان")
         except ValueError:
-            parts.append(f"قیمت: {price}")
+            parts.append(f"قیمت {price}")
 
     if color:
-        parts.append(f"رنگ: {color}")
+        parts.append(f"رنگ {color}")
 
     if mileage:
         try:
-            parts.append(f"کارکرد: {to_persian_digits(f'{int(mileage):,}')} کیلومتر")
+            parts.append(f"کارکرد {to_persian_digits(f'{int(mileage):,}')} کیلومتر")
         except ValueError:
-            parts.append(f"کارکرد: {mileage}")
+            parts.append(f"کارکرد {mileage}")
 
     if insurance:
-        parts.append(f"بیمه: {insurance}")
+        parts.append(f"بیمه {insurance}")
 
     if red_text:
         parts.append(red_text)

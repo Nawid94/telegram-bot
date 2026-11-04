@@ -269,7 +269,6 @@ def format_message(widget):
     parts = [
         f"<b>{title}</b>",
         f"<b>{middle}</b>",
-        "",
         f"کارکرد {top}",
     ]
     if city:

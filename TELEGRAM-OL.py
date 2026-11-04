@@ -142,6 +142,13 @@ def send_telegram(text):
         return False
 
 
+def get_city(widget):
+    """نام شهر را از مسیر action.payload.web_info.city_persian استخراج می‌کند."""
+    d = widget.get("data", {}) or {}
+    web_info = (d.get("action") or {}).get("payload", {}).get("web_info", {}) or {}
+    return web_info.get("city_persian") or ""
+
+
 # ==================================================================
 # 🔧 فیلترهای سمت سرور — دقیقاً مطابق payload واقعی دیوار
 # ==================================================================
@@ -246,14 +253,14 @@ def bootstrap_tokens():
 
 
 def format_message(widget):
-    """پیام تلگرام را فقط از فیلدهای موجود در data می‌سازد."""
+    """پیام تلگرام را فقط از فیلدهای موجود در data و web_info می‌سازد."""
     d = widget.get("data", {}) or {}
     title = html.escape(d.get("title") or "")
     middle = html.escape(d.get("middle_description_text") or "")
     top = html.escape(d.get("top_description_text") or "")
-    bottom = html.escape(d.get("bottom_description_text") or "")
     image_count = d.get("image_count", "0")
     image_url = d.get("image_url", "")
+    city = html.escape(get_city(widget))
 
     # ─── لینک آگهی از توکن ───
     token = d.get("token", "")
@@ -264,13 +271,14 @@ def format_message(widget):
         f"<b>{middle}</b>",
         "",
         f"کارکرد {top}",
-        "",
     ]
+    if city:
+        parts.append(f"شهر {city}")
+    parts.append("")
     if ad_url:
         parts.append(f'<a href="{ad_url}">لینک مشاهده آگهی</a>')
     if image_url:
         parts.append(f'<a href="{image_url}">   </a>')
-    parts.append(bottom)
     parts.append(f"تعداد تصاویر {image_count} عدد")
 
     return "\n".join(parts)

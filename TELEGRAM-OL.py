@@ -339,7 +339,6 @@ def format_message(widget, details=None):
 
     if ad_url:
         parts.append(f'<a href="{ad_url}">لینک مشاهده آگهی</a>')
-        parts.append("")
     if image_url:
         parts.append(f'<a href="{image_url}">   </a>')
     if image_count:
